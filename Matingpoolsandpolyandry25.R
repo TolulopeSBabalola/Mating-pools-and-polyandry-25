@@ -14,7 +14,7 @@ library(readr)
 
 ###load data 
 
-Lekreturnrates <- read_csv("~/Library/CloudStorage/OneDrive-UniversityofToronto/Mating Pools/BabalolaMurray2025-data and code/Lekreturnrates.csv")
+Lekreturnrates <- read_csv("Lekreturnrates.csv")
 View(Lekreturnrates)
 
 ##filter out swarms between of <1
