@@ -13,7 +13,7 @@ library(lmPerm)
 library(readr)
 
 ###load data 
-
+rawdata<-(read.csv("rawdata.csv"))
 Lekreturnrates <- read_csv("Lekreturnrates.csv")
 View(Lekreturnrates)
 
@@ -30,6 +30,57 @@ summary(rrf)
 rrm<-rr%>%filter(Sex=="m")
 summary(rrm)
 
+###GLM probability of recapture
+prorecap<-glm(status~Sex, data=rawdata, family=binomial)
+summary(prorecap)
+simulationoutpu<-simulateResiduals(fittedModel = prorecap)
+plot(simulationoutpu)
+
+##figure 1 : OSR per day
+
+summary_df <- rawdata %>%
+  group_by(Date, Sex, SwarmNo) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  tidyr::pivot_wider(
+    names_from = Sex,
+    values_from = count,
+    values_fill = 0
+  ) %>%
+  mutate(total = rowSums(across(where(is.numeric))))
+
+# Define the desired order
+order1 <- c("June 8 2020", "June 9 2020", "June 10 2020", "June 11 2020",
+                   "June 12 2020","June 13 2020","June 14 2020","June 15 2020",
+                   "June 16 2020","June 17 2020","June 18 2020")
+# Reorder the factor levels in  data frame
+summary_df$Date <- factor(summary_df$Date, levels = order1)
+summary_df <- summary_df %>%
+  arrange(Date) %>%        
+  mutate(cum_total = cumsum(total))
+summary_df <- summary_df %>%
+  mutate(cum_prop = cum_total / max(cum_total))
+summary_df <- summary_df %>%
+  mutate(day_num = 1:n())
+
+ggplot(data=summary_df, aes(x=SwarmNo))+
+  geom_point(aes(y=m/total, size = total, colour = m/total))+
+  geom_step(aes(y=cum_prop, group = 1))+
+  theme_classic()+
+  scale_colour_gradient(low = "orange", high = "maroon") +
+  scale_size(range = c(5, 25))+
+  scale_x_continuous(breaks = 1:12)+
+  scale_y_continuous("Operational Sex Ratio", sec.axis = sec_axis(~ . * 387, name="Total Capture"))+
+  theme_classic()+
+  guides(
+    colour = guide_colourbar(title = "", barwidth = 0.5, barheight = 8, position = "left"),
+    size="none")+
+  labs(y="Cumulative % Captured", x="Swarm")+
+  theme( axis.title.x = element_text(size=16,face ="bold"),
+         axis.text.x = element_text(size = 12, face = "bold"),
+         axis.text.y = element_text(size = 12, face = "bold"),
+         axis.title.y = element_text(size=16,face ="bold"),
+         legend.text= element_blank())
+
 ###Differences in means and Significance testing-----
 ###means of M and F return 
 mean_se(rrf$SwarmsBetween)
@@ -44,13 +95,15 @@ isTRUE(mean(rrm$SwarmsBetween) > mean(rrf$SwarmsBetween)
 isTRUE(mean(rrf$SwarmsBetween) < mean(rrm$SwarmsBetween)
        - (2 *se_rrm)) 
 
-##normality and varience 
+##ordinary least squares 
+diffmodel <- glm(SwarmsBetween ~ Sex, data = rr, family = poisson(link ="log"))
+summary(diffmodel)
 
-shapiro.test(rrf$SwarmsBetween)
+exp(coef(diffmodel))          # rate ratios
+confint(diffmodel)            # CI on log scale
+exp(confint(diffmodel))       # CI on RR scale
+summary(diffmodel)$coefficients
 
-shapiro.test(rrm$SwarmsBetween)
-
-var.test(SwarmsBetween ~ Sex, rr)
 
 ##unpaired t-test 
 t.test(rrm$DaysBetween,rrf$DaysBetween)
